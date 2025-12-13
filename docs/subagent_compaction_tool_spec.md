@@ -64,7 +64,7 @@ All outputs should:
 
 ### 5.1 Components
 1. **MCP Server**
-   - Exposes tools (e.g., `research_codebase`, `locate`, `pattern_find`, `analyze`, `create_handoff`).
+   - Exposes tools (e.g., `ping`, `list_roots`, `research_codebase`, later: `locate_in_codebase`, `analyze_component`, `find_patterns`, `create_handoff`).
    - Owns configuration, path policies, concurrency, and response shaping.
 
 2. **Subagent Runtime**
@@ -93,7 +93,15 @@ This spec uses a **Worker Pool** hosting model:
 - Tool inputs must be JSON-schema-like (or MCP equivalent): explicit required/optional fields, sane defaults.
 
 ### 6.2 Tool Surface (Initial)
-Minimum viable tool set:
+Bootstrap tools:
+- `ping`
+  - Input: none
+  - Output: `"pong"`
+- `list_roots`
+  - Input: none
+  - Output: allowlisted workspace roots
+
+Minimum viable research tool:
 - `research_codebase`
   - Input: `question`, optional `roots`, optional `constraints` (time/token budgets), optional `artifact` toggle.
   - Output: compact report + references, optional artifact path.
@@ -109,6 +117,57 @@ Recommended supporting tools (may be internal-only first, then exposed):
 Optional later:
 - `resume_handoff` / `create_handoff` (artifact management workflow).
 - `web_research` (explicit opt-in, gated behind network permission).
+
+### 6.3 Schemas and Contracts (Normative)
+This section defines the **minimum stable schemas** that subagents and synthesizers must produce.
+
+#### Reference Format
+References should be emitted as strings in one of these formats:
+- `path/to/file.ext`
+- `path/to/file.ext:line`
+- `path/to/file.ext:line:col`
+
+#### Normalized Subagent Result Schema
+Every subagent returns a payload shaped like:
+```json
+{
+  "summary": "string",
+  "references": ["path/to/file.ext:123"],
+  "key_findings": ["string"],
+  "confidence": "low|med|high",
+  "notes": "string|null"
+}
+```
+
+#### Runtime Wrapper Schema
+The runtime wraps all subagent results (and failures) into:
+```json
+{
+  "status": "ok|timeout|canceled|error",
+  "value": { "summary": "string", "references": [], "key_findings": [], "confidence": "low", "notes": null },
+  "error": { "name": "Error", "message": "string" },
+  "timing": { "startedAt": 0, "elapsedMs": 0 }
+}
+```
+Rules:
+- `value` is present only when `status: "ok"`.
+- `error` is present only when `status !== "ok"`.
+
+#### `research_codebase` Output Contract
+`research_codebase` returns a compact, machine-readable report (as JSON text in MCP `content`):
+```json
+{
+  "question": "string",
+  "rootsSearched": ["/abs/path/root"],
+  "locator": {
+    "status": "ok|timeout|canceled|error",
+    "value": { "summary": "string", "references": [], "key_findings": [], "confidence": "low", "notes": null },
+    "error": { "name": "Error", "message": "string" },
+    "timing": { "startedAt": 0, "elapsedMs": 0 }
+  }
+}
+```
+As more roles are added (analyzer/pattern-finder), this report grows by adding new top-level role keys (e.g., `analyzer`, `patterns`) using the same runtime wrapper schema.
 
 ## 7) Subagent Design Requirements
 
@@ -131,6 +190,12 @@ Each subagent must have:
 - Hard limits: max files read, max bytes read, max time, max concurrent tasks.
 - Redaction rules (see §9).
 
+Default Phase 2+ budgets (configurable):
+- `limits.maxFilesRead`: 50
+- `limits.maxBytesRead`: 1_048_576 (1 MiB)
+- `runtime.defaultDeadlineMs`: 30_000
+- `runtime.maxConcurrentTasks`: 4
+
 ### 7.3 Result Normalization
 Each subagent returns a structured payload:
 - `summary` (short),
@@ -140,6 +205,24 @@ Each subagent returns a structured payload:
 - `notes` (optional, bounded).
 
 The MCP server synthesizer merges these into a single report.
+
+### 7.4 Role Library (Normative)
+Role definitions are intentionally short. Deterministic tooling and schema enforcement provide the guardrails.
+
+**Locator**
+- Purpose: map *where* relevant code/docs likely live.
+- Output: references only; no long excerpts.
+- Tools: search/list; no writes.
+
+**Analyzer**
+- Purpose: explain *how* something works with evidence.
+- Output: short flow notes + file:line references; minimal snippets only when required.
+- Tools: search + bounded reads; no writes.
+
+**Pattern Finder**
+- Purpose: show 2–6 representative examples of an existing pattern.
+- Output: references + small essential snippets; avoid duplication.
+- Tools: search + bounded reads; no writes.
 
 ## 8) Compaction Workflow (End-to-End)
 
@@ -167,6 +250,20 @@ Avoid:
 - Large diffs or full-file dumps.
 - Repeating the same reference across agents; dedupe in synthesis.
 
+### 8.3 Artifact Format (Optional)
+Artifacts are persisted only on explicit request (e.g., `artifact: true`). They should mirror the compact, referenced report structure used in tool responses.
+
+Minimum artifact format (markdown):
+- Title line: `# Research Handoff`
+- `## Question` (verbatim user question)
+- `## Summary` (2–6 sentences, no recommendations by default)
+- `## Key Findings` (bullets; bounded)
+- `## References` (paths and `path:line` entries; deduped)
+- `## Constraints / Budgets` (roots searched, limits used, timeouts)
+- `## Notes` (optional; bounded)
+
+Artifacts must follow the same redaction rules as tool outputs (§9.2).
+
 ## 9) Safety, Privacy, and Policy
 
 ### 9.1 File Access Controls
@@ -177,6 +274,11 @@ Avoid:
 ### 9.2 Secret Handling
 - Detect likely secrets (tokens/keys) and redact in outputs.
 - Never include environment variables or credentials in artifacts.
+
+Minimum redaction requirements:
+- Redact long token-like strings (API keys, bearer tokens, JWTs) even if they appear in source files.
+- Redact credentials in URLs (e.g., `https://user:pass@host/...`).
+- When redaction happens, preserve surrounding context by leaving references intact (prefer `path:line` over including the secret).
 
 ### 9.3 Network Controls
 - Default: no external network.
@@ -203,10 +305,10 @@ Each phase is represented as a table of atomic tasks.
 ### Phase 1: Bootstrap MCP Server
 | Task | Output | Done When | TODO |
 |---|---|---|---|
-| Implement MCP server skeleton | Tool registration + request/response plumbing | Server starts and responds to basic calls | - [ ] |
+| Implement MCP server skeleton | Tool registration + request/response plumbing | Server starts and responds to basic calls | - [x] |
 | Validate LM Studio integration | Working `mcp.json` plugin configuration | LM Studio can invoke `ping` / `list_roots` reliably | - [ ] |
-| Implement configuration system | Roots, limits, logging level | Config loads and is applied to tool execution | - [ ] |
-| Add Phase 1 tests (smoke) | Automated smoke checks for server startup + basic tool call | Test run proves “server boots + responds” | - [ ] |
+| Implement configuration system | Roots, limits, logging level | Config loads and is applied to tool execution | - [x] |
+| Add Phase 1 tests (unit) | Automated checks for config + tool routing | Test run proves “tools/list + tools/call” behave as expected | - [x] |
 
 #### Unit Tests (Phase 1)
 - Server boots with minimal config and registers expected tool names.
@@ -218,11 +320,11 @@ Each phase is represented as a table of atomic tasks.
 ### Phase 2: Implement Subagent Call
 | Task | Output | Done When | TODO |
 |---|---|---|---|
-| Build subagent runtime abstraction | Task definition + scheduling + cancellation/timeouts | Runtime runs tasks with enforced deadlines | - [ ] |
-| Implement Locator subagent | Single-role Locator wired to deterministic tools | Locator returns structured results with references | - [ ] |
-| Integrate local model provider for subagents | Provider client supporting queued or concurrent execution | Multiple subagent calls execute under worker-pool limits | - [ ] |
-| Wire `research_codebase` to Locator | End-to-end tool path using the runtime | `research_codebase` runs Locator and returns structured output | - [ ] |
-| Add Phase 2 tests (runtime + integration) | Tests for deadlines/cancellation + worker pool limits + `research_codebase`→Locator path | Tests cover timeouts, cancellation, and bounded concurrency | - [ ] |
+| Build subagent runtime abstraction | Task definition + scheduling + cancellation/timeouts | Runtime runs tasks with enforced deadlines | - [x] |
+| Implement Locator subagent | Single-role Locator wired to deterministic tools | Locator returns structured results with references | - [x] |
+| Integrate local model provider for subagents | Provider client supporting queued or concurrent execution | Multiple subagent calls execute under worker-pool limits | - [x] |
+| Wire `research_codebase` to Locator | End-to-end tool path using the runtime | `research_codebase` runs Locator and returns structured output | - [x] |
+| Add Phase 2 tests (runtime + integration) | Tests for deadlines/cancellation + worker pool limits + `research_codebase`→Locator path | Tests cover timeouts, cancellation, and bounded concurrency | - [x] |
 
 #### Unit Tests (Phase 2)
 - Worker pool enforces `max_concurrent_tasks` and queues or rejects predictably when saturated.
@@ -236,12 +338,12 @@ Each phase is represented as a table of atomic tasks.
 ### Phase 3: Design Compaction Workflow
 | Task | Output | Done When | TODO |
 |---|---|---|---|
-| Define role library | Locator/Analyzer/Pattern Finder role definitions based on `agents/` | Roles are documented with clear inputs/outputs | - [ ] |
-| Define synthesis contract + schemas | Output schemas for subagents and synthesized report | Schemas are explicit and reviewable by the team | - [ ] |
-| Define heuristics, budgets, and redaction | Compaction rules + limits + safety policy | Budgets and redaction rules are unambiguous | - [ ] |
-| Define artifact format (optional) | Research/handoff memo structure | Artifact format is specified (or explicitly deferred) | - [ ] |
-| Align on tool surface and constraints | Reviewed tool names + schemas + safety constraints | Team agreement recorded | - [ ] |
-| Define Phase 3 acceptance tests (goldens) | Scenario list + expected “compact output” characteristics + schema fixtures | Acceptance tests are documented and implementable | - [ ] |
+| Define role library | Locator/Analyzer/Pattern Finder role definitions based on `agents/` | Roles are documented with clear inputs/outputs | - [x] |
+| Define synthesis contract + schemas | Output schemas for subagents and synthesized report | Schemas are explicit and reviewable by the team | - [x] |
+| Define heuristics, budgets, and redaction | Compaction rules + limits + safety policy | Budgets and redaction rules are unambiguous | - [x] |
+| Define artifact format (optional) | Research/handoff memo structure | Artifact format is specified (or explicitly deferred) | - [x] |
+| Align on tool surface and constraints | Reviewed tool names + schemas + safety constraints | Team agreement recorded | - [x] |
+| Define Phase 3 acceptance tests (goldens) | Scenario list + expected “compact output” characteristics + schema fixtures | Acceptance tests are documented and implementable | - [x] |
 
 #### Unit Tests (Phase 3)
 - Schema validation tests: every tool response conforms to the agreed JSON schema (no extra/missing fields).
@@ -250,6 +352,20 @@ Each phase is represented as a table of atomic tasks.
 - Redaction tests: known secret patterns are removed from outputs and artifacts while preserving references.
 - Reference formatting tests: file references are emitted as `path:line` (when available) and never as full dumps.
 - Golden/acceptance fixtures: representative prompts map to expected “high-signal, low-token” outputs.
+
+#### Acceptance Tests (Phase 3)
+These scenarios define “golden” expectations for compaction quality (not implementation details).
+
+- **Locate-only**: question “Where is X implemented?”
+  - Expects: `locator.status: ok`, `references.length > 0`, no large excerpts, stable ordering.
+- **Not found**: question about a non-existent symbol
+  - Expects: `references.length == 0`, explicit “not found” phrasing in `summary`, `confidence: low`.
+- **Scope restriction**: provide `roots` that exclude the relevant file
+  - Expects: report shows `rootsSearched` accurately and does not leak paths outside them.
+- **Budget pressure**: set small byte/file limits
+  - Expects: bounded outputs + explicit note in `summary`/`notes` that limits may have truncated results.
+- **Redaction**: repository contains a fake token string
+  - Expects: outputs do not include the raw token; references remain.
 
 ### Phase 4: Implement Compaction Workflow
 | Task | Output | Done When | TODO |

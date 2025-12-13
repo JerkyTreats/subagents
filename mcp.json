@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "subagents": {
+      "command": "node",
+      "args": [
+        "bin/subagents-mcp.js"
+      ],
+      "env": {
+        "SUBAGENTS_CONFIG": "subagents.config.json"
+      }
+    }
+  }
+}
+

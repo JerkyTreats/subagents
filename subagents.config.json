@@ -6,8 +6,14 @@
     "maxFilesRead": 50,
     "maxBytesRead": 1048576
   },
+  "runtime": {
+    "maxConcurrentTasks": 4,
+    "defaultDeadlineMs": 30000
+  },
+  "provider": {
+    "kind": null
+  },
   "logging": {
     "level": "info"
   }
 }
-

@@ -7,6 +7,13 @@ const DEFAULT_CONFIG = Object.freeze({
     maxFilesRead: 50,
     maxBytesRead: 1024 * 1024,
   },
+  runtime: {
+    maxConcurrentTasks: 4,
+    defaultDeadlineMs: 30_000,
+  },
+  provider: {
+    kind: null,
+  },
   logging: {
     level: "info",
   },
@@ -22,6 +29,8 @@ export function loadConfig({ cwd = process.cwd(), env = process.env } = {}) {
     ...DEFAULT_CONFIG,
     ...userConfig,
     limits: { ...DEFAULT_CONFIG.limits, ...(userConfig.limits ?? {}) },
+    runtime: { ...DEFAULT_CONFIG.runtime, ...(userConfig.runtime ?? {}) },
+    provider: { ...DEFAULT_CONFIG.provider, ...(userConfig.provider ?? {}) },
     logging: { ...DEFAULT_CONFIG.logging, ...(userConfig.logging ?? {}) },
   };
 
@@ -41,6 +50,17 @@ export function loadConfig({ cwd = process.cwd(), env = process.env } = {}) {
       maxFilesRead: coercePositiveInt(merged.limits.maxFilesRead, "limits.maxFilesRead"),
       maxBytesRead: coercePositiveInt(merged.limits.maxBytesRead, "limits.maxBytesRead"),
     },
+    runtime: {
+      maxConcurrentTasks: coercePositiveInt(
+        merged.runtime.maxConcurrentTasks,
+        "runtime.maxConcurrentTasks",
+      ),
+      defaultDeadlineMs: coercePositiveInt(
+        merged.runtime.defaultDeadlineMs,
+        "runtime.defaultDeadlineMs",
+      ),
+    },
+    provider: normalizeProviderConfig(merged.provider, { env }),
     logging: {
       level: loggingLevel,
     },
@@ -89,3 +109,28 @@ function coercePositiveInt(value, label) {
   return asNumber;
 }
 
+function normalizeProviderConfig(provider, { env }) {
+  if (provider == null || typeof provider !== "object" || Array.isArray(provider)) {
+    throw new Error(`Invalid provider; expected object`);
+  }
+
+  const kind = provider.kind ?? null;
+  if (kind == null || kind === "" || kind === false) return { kind: null };
+
+  if (kind !== "lmstudio-openai") {
+    throw new Error(`Invalid provider.kind "${String(kind)}"`);
+  }
+
+  const baseUrl = String(provider.baseUrl ?? env.SUBAGENTS_LMSTUDIO_BASE_URL ?? "").trim();
+  const model = String(provider.model ?? env.SUBAGENTS_MODEL ?? "").trim();
+  const apiKey = String(provider.apiKey ?? env.SUBAGENTS_API_KEY ?? "").trim();
+
+  if (!baseUrl) {
+    throw new Error(`provider.baseUrl is required for provider.kind "lmstudio-openai"`);
+  }
+  if (!model) {
+    throw new Error(`provider.model is required for provider.kind "lmstudio-openai"`);
+  }
+
+  return { kind, baseUrl, model, apiKey: apiKey || null };
+}

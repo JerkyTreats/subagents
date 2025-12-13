@@ -4,10 +4,9 @@ export const pingTool = {
   inputSchema: {
     type: "object",
     properties: {},
-    additionalProperties: false
+    additionalProperties: false,
   },
   async handler() {
     return { content: [{ type: "text", text: "pong" }] };
   },
 };
-

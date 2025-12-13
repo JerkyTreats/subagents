@@ -46,10 +46,12 @@ This project contains agent prompt patterns and orchestration strategies adapted
 Run locally:
 - `npm test`
 - `npm start`
+- `node scripts/mcp_stdio_smoke.mjs`
 
-Tools (Phase 1):
+Tools:
 - `ping`
 - `list_roots`
+- `research_codebase` (Phase 2)
 
 ### LM Studio
 `mcp.json` is included as a starting point. Adjust paths as needed for your LM Studio setup.

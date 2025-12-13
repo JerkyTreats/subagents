@@ -4,10 +4,11 @@ const JSONRPC_VERSION = "2.0";
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 
 export class McpServer {
-  constructor({ logger, serverInfo, tools, config }) {
+  constructor({ logger, serverInfo, tools, config, context = {} }) {
     this.logger = logger;
     this.serverInfo = serverInfo;
     this.config = config;
+    this.context = context;
     this.toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
   }
 
@@ -102,6 +103,7 @@ export class McpServer {
         const result = await tool.handler({
           arguments: toolArgs,
           config: this.config,
+          ...this.context,
         });
 
         return isNotification ? null : jsonrpcResultResponse(id, result);
@@ -114,6 +116,11 @@ export class McpServer {
         method,
         error: error?.message ?? String(error),
       });
+      if (error?.name === "ToolInputError") {
+        return isNotification
+          ? null
+          : jsonrpcErrorResponse(id ?? null, -32602, error.message || "Invalid params");
+      }
       return isNotification ? null : jsonrpcErrorResponse(id ?? null, -32603, "Internal error");
     }
   }
