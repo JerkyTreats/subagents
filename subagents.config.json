@@ -1,0 +1,13 @@
+{
+  "roots": [
+    "."
+  ],
+  "limits": {
+    "maxFilesRead": 50,
+    "maxBytesRead": 1048576
+  },
+  "logging": {
+    "level": "info"
+  }
+}
+

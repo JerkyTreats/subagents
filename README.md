@@ -14,6 +14,8 @@ This project contains agent prompt patterns and orchestration strategies adapted
 
 ```
 /subagents/
+├── bin/                       # Executable entrypoints
+│   └── subagents-mcp.js               # MCP stdio server (Phase 1)
 ├── agents/                    # Specialized agent prompt definitions
 │   ├── codebase-analyzer.md           # Deep analysis of code implementation
 │   ├── codebase-locator.md            # Finding where code lives
@@ -21,13 +23,36 @@ This project contains agent prompt patterns and orchestration strategies adapted
 │   ├── thoughts-analyzer.md           # Extracting insights from documents
 │   ├── thoughts-locator.md            # Finding relevant documents
 │   └── web-search-researcher.md       # Web research with synthesis
+├── docs/                      # Design docs/specs
+│   └── subagent_compaction_tool_spec.md
 ├── examples/                  # Example orchestration patterns
 │   ├── create_handoff.md              # Explicit compaction strategy
 │   ├── research_codebase.md           # Multi-agent orchestration
 │   └── resume_handoff.md              # Synthesis pattern example
+├── src/                       # Implementation (no external deps)
+│   ├── config.js                      # Config loader/validation
+│   ├── logger.js                      # Minimal logger
+│   ├── mcp/                           # MCP JSON-RPC stdio plumbing
+│   └── tools/                         # Phase 1 tools (ping, list_roots)
 ├── LICENSE                    # Apache 2.0 license
+├── mcp.json                    # LM Studio MCP plugin config (example)
+├── subagents.config.json       # Default config (roots/limits/logging)
+├── subagents.config.example.json
 └── README.md                  # This file
 ```
+
+## Phase 1: MCP Server (stdio)
+
+Run locally:
+- `npm test`
+- `npm start`
+
+Tools (Phase 1):
+- `ping`
+- `list_roots`
+
+### LM Studio
+`mcp.json` is included as a starting point. Adjust paths as needed for your LM Studio setup.
 
 ## Key Compaction Strategies
 
