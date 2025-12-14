@@ -1,6 +1,6 @@
 {
   "roots": [
-    "."
+    "/home/jerkytreats/ai"
   ],
   "limits": {
     "maxFilesRead": 50,

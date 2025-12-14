@@ -6,6 +6,7 @@ import { LmStudioOpenAIProvider } from "../src/providers/lmstudio_openai.js";
 import { SubagentRuntime } from "../src/runtime/subagent_runtime.js";
 import { WorkerPool } from "../src/runtime/worker_pool.js";
 import { listRootsTool } from "../src/tools/list_roots.js";
+import { listCodebasesTool } from "../src/tools/list_codebases.js";
 import { pingTool } from "../src/tools/ping.js";
 import { researchCodebaseTool } from "../src/tools/research_codebase.js";
 
@@ -30,7 +31,7 @@ const provider =
 const server = new McpServer({
   logger,
   serverInfo: { name: "subagents-mcp", version: "0.1.0" },
-  tools: [pingTool, listRootsTool, researchCodebaseTool],
+  tools: [pingTool, listRootsTool, listCodebasesTool, researchCodebaseTool],
   config,
   context: { runtime, provider, logger },
 });

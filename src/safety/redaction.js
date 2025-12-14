@@ -1,7 +1,9 @@
-// Heuristic token matcher: long, base64-ish, and contains at least one "_" or "=".
-// This avoids redacting common hyphenated identifiers like filenames (e.g., "research-handoff-20251213-...").
+// Heuristic token matcher: long, base64-ish, and either:
+// - contains "=" (common base64 padding), OR
+// - contains "_" and at least one digit (common API key shape).
+// This avoids redacting many long snake_case identifiers (including filenames) that are letters+underscores only.
 const TOKEN_RE =
-  /(?<![A-Za-z0-9_=-])(?=[A-Za-z0-9_=-]{24,})(?=[A-Za-z0-9_=-]*[_=])[A-Za-z0-9_=-]{24,}(?![A-Za-z0-9_=-])/g;
+  /(?<![A-Za-z0-9_=-])(?=[A-Za-z0-9_=-]{24,})(?:(?=[A-Za-z0-9_=-]*=)|(?=[A-Za-z0-9_=-]*_)(?=[A-Za-z0-9_=-]*\d))[A-Za-z0-9_=-]{24,}(?![A-Za-z0-9_=-])/g;
 const GITHUB_TOKEN_RE = /\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g;
 const JWT_RE = /\beyJ[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\b/g;
 const URL_CREDENTIALS_RE = /\b(https?:\/\/)([^\/\s:@]+):([^\/\s@]+)@/gi;

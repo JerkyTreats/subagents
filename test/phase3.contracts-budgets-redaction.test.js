@@ -25,6 +25,9 @@ test("redactText redacts common token patterns and URL credentials", () => {
   const redactedUrl = redactText(url);
   assert.ok(!redactedUrl.includes("user:pass@"));
   assert.ok(redactedUrl.includes("https://[REDACTED]@example.com"));
+
+  const longSnakeCase = "convert_hf_to_gguf_update_py";
+  assert.equal(redactText(longSnakeCase), longSnakeCase);
 });
 
 test("research_codebase output matches the Phase 3 contract and is deterministic", async () => {
