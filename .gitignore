@@ -11,6 +11,7 @@ build/
 out/
 coverage/
 .nyc_output/
+artifacts/
 
 # Caches
 .cache/

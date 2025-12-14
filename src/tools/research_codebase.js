@@ -1,7 +1,11 @@
 import path from "node:path";
 
+import { runAnalyzerSubagent, heuristicKeywordsFromQuestion } from "../subagents/analyzer.js";
 import { runLocatorSubagent } from "../subagents/locator.js";
+import { runPatternFinderSubagent } from "../subagents/pattern_finder.js";
+import { writeResearchArtifact } from "../artifacts/write_artifact.js";
 import { redactJson } from "../safety/redaction.js";
+import { synthesizeResearchReport } from "../synthesis/synthesize_report.js";
 
 export const researchCodebaseTool = {
   name: "research_codebase",
@@ -12,6 +16,7 @@ export const researchCodebaseTool = {
       question: { type: "string" },
       roots: { type: "array", items: { type: "string" } },
       constraints: { type: "object" },
+      artifact: { type: ["boolean", "object"] },
     },
     required: ["question"],
     additionalProperties: false,
@@ -32,6 +37,8 @@ export const researchCodebaseTool = {
       allowed: config.roots,
     });
 
+    const keywords = heuristicKeywordsFromQuestion(question);
+
     const locatorTask = {
       role: "locator",
       deadlineMs: args.constraints?.deadlineMs,
@@ -46,15 +53,73 @@ export const researchCodebaseTool = {
       },
     };
 
-    const result = await runtime.run(locatorTask);
+    const locator = await runtime.run(locatorTask);
+
+    const candidateRefs = locator.status === "ok" ? locator.value.references : [];
+
+    const analyzerTask = {
+      role: "analyzer",
+      deadlineMs: args.constraints?.deadlineMs,
+      async run({ signal }) {
+        return runAnalyzerSubagent({
+          question,
+          roots,
+          candidateReferences: candidateRefs,
+          keywords,
+          config,
+          signal,
+        });
+      },
+    };
+
+    const patternTask = {
+      role: "pattern_finder",
+      deadlineMs: args.constraints?.deadlineMs,
+      async run({ signal }) {
+        return runPatternFinderSubagent({
+          question,
+          roots,
+          candidateReferences: candidateRefs,
+          keywords,
+          config,
+          signal,
+        });
+      },
+    };
+
+    const [analyzer, patterns] = await Promise.all([runtime.run(analyzerTask), runtime.run(patternTask)]);
+
+    const synthesis = synthesizeResearchReport({ question, locator, analyzer, patterns });
 
     const report = {
       question,
       rootsSearched: roots,
-      locator: result,
+      locator,
+      analyzer,
+      patterns,
+      synthesis,
     };
 
-    const redacted = redactJson(report);
+    let artifactPath = null;
+    const artifactRequest = args.artifact ?? false;
+    const artifactEnabled =
+      artifactRequest === true || (artifactRequest && typeof artifactRequest === "object");
+
+    if (artifactEnabled) {
+      if (!config.artifacts?.enabled) {
+        artifactPath = null;
+      } else {
+        const dir = typeof artifactRequest === "object" ? artifactRequest.dir : undefined;
+        artifactPath = await writeResearchArtifact({
+          cwd: process.cwd(),
+          dir: dir ?? config.artifacts.dir,
+          report,
+          limits: config.limits,
+        });
+      }
+    }
+
+    const redacted = redactJson({ ...report, artifact: artifactPath });
     return { content: [{ type: "text", text: JSON.stringify(redacted, null, 2) }] };
   },
 };

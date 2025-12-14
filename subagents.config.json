@@ -10,6 +10,19 @@
     "maxConcurrentTasks": 4,
     "defaultDeadlineMs": 30000
   },
+  "compaction": {
+    "maxAnalyzerFiles": 5,
+    "maxPatternFiles": 10,
+    "maxPatterns": 6,
+    "maxKeyFindings": 24,
+    "snippetContextLines": 0,
+    "maxAnalyzerBytesRead": 524288,
+    "maxPatternBytesRead": 524288
+  },
+  "artifacts": {
+    "enabled": false,
+    "dir": "artifacts"
+  },
   "provider": {
     "kind": null
   },

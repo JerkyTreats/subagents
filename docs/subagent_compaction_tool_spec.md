@@ -370,11 +370,11 @@ These scenarios define “golden” expectations for compaction quality (not imp
 ### Phase 4: Implement Compaction Workflow
 | Task | Output | Done When | TODO |
 |---|---|---|---|
-| Implement full `research_codebase` pipeline | locate → analyze → pattern-find → synthesize | Pipeline runs end-to-end under budget limits | - [ ] |
-| Implement concurrency + dedupe | Worker-pool scheduling + result deduplication | Concurrency is bounded and outputs are stable | - [ ] |
+| Implement full `research_codebase` pipeline | locate → analyze → pattern-find → synthesize | Pipeline runs end-to-end under budget limits | - [x] |
+| Implement concurrency + dedupe | Worker-pool scheduling + result deduplication | Concurrency is bounded and outputs are stable | - [x] |
 | Add caching/indexing (optional) | Cache or index implementation | Enabled only if configured and measurably helps | - [ ] |
-| Implement artifact writing (optional) | Markdown memo persisted on explicit request | Artifact path returned and content matches compaction contract | - [ ] |
-| Add Phase 4 tests (regression + E2E) | Tests for redaction, bounds enforcement, schema stability, and end-to-end `research_codebase` runs | Tests pass and prevent regressions | - [ ] |
+| Implement artifact writing (optional) | Markdown memo persisted on explicit request | Artifact path returned and content matches compaction contract | - [x] |
+| Add Phase 4 tests (regression + E2E) | Tests for redaction, bounds enforcement, schema stability, and end-to-end `research_codebase` runs | Tests pass and prevent regressions | - [x] |
 | Validate across representative repos | Smoke runs on 3–5 repos | Outputs are consistently compact and high-signal | - [ ] |
 
 #### Unit Tests (Phase 4)

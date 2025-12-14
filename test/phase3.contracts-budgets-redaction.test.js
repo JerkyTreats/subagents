@@ -18,7 +18,7 @@ test("redactText redacts common token patterns and URL credentials", () => {
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
   assert.ok(!redactText(jwt).includes("eyJ"));
 
-  const longToken = "A".repeat(32);
+  const longToken = `${"A".repeat(31)}=`;
   assert.equal(redactText(`bearer ${longToken}`), "bearer [REDACTED]");
 
   const url = "https://user:pass@example.com/path";
@@ -157,4 +157,3 @@ function isReferenceString(ref) {
   if (ref.includes("\n")) return false;
   return /^[^\s]+(?::\d+(?::\d+)?)?$/.test(ref);
 }
-

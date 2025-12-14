@@ -11,6 +11,19 @@ const DEFAULT_CONFIG = Object.freeze({
     maxConcurrentTasks: 4,
     defaultDeadlineMs: 30_000,
   },
+  compaction: {
+    maxAnalyzerFiles: 5,
+    maxPatternFiles: 10,
+    maxPatterns: 6,
+    maxKeyFindings: 24,
+    snippetContextLines: 0,
+    maxAnalyzerBytesRead: 512 * 1024,
+    maxPatternBytesRead: 512 * 1024,
+  },
+  artifacts: {
+    enabled: false,
+    dir: "artifacts",
+  },
   provider: {
     kind: null,
   },
@@ -30,6 +43,8 @@ export function loadConfig({ cwd = process.cwd(), env = process.env } = {}) {
     ...userConfig,
     limits: { ...DEFAULT_CONFIG.limits, ...(userConfig.limits ?? {}) },
     runtime: { ...DEFAULT_CONFIG.runtime, ...(userConfig.runtime ?? {}) },
+    compaction: { ...DEFAULT_CONFIG.compaction, ...(userConfig.compaction ?? {}) },
+    artifacts: { ...DEFAULT_CONFIG.artifacts, ...(userConfig.artifacts ?? {}) },
     provider: { ...DEFAULT_CONFIG.provider, ...(userConfig.provider ?? {}) },
     logging: { ...DEFAULT_CONFIG.logging, ...(userConfig.logging ?? {}) },
   };
@@ -60,6 +75,8 @@ export function loadConfig({ cwd = process.cwd(), env = process.env } = {}) {
         "runtime.defaultDeadlineMs",
       ),
     },
+    compaction: normalizeCompactionConfig(merged.compaction),
+    artifacts: normalizeArtifactsConfig(merged.artifacts),
     provider: normalizeProviderConfig(merged.provider, { env }),
     logging: {
       level: loggingLevel,
@@ -133,4 +150,47 @@ function normalizeProviderConfig(provider, { env }) {
   }
 
   return { kind, baseUrl, model, apiKey: apiKey || null };
+}
+
+function normalizeCompactionConfig(compaction) {
+  if (compaction == null || typeof compaction !== "object" || Array.isArray(compaction)) {
+    throw new Error(`Invalid compaction; expected object`);
+  }
+
+  return {
+    maxAnalyzerFiles: coercePositiveInt(compaction.maxAnalyzerFiles, "compaction.maxAnalyzerFiles"),
+    maxPatternFiles: coercePositiveInt(compaction.maxPatternFiles, "compaction.maxPatternFiles"),
+    maxPatterns: coercePositiveInt(compaction.maxPatterns, "compaction.maxPatterns"),
+    maxKeyFindings: coercePositiveInt(compaction.maxKeyFindings, "compaction.maxKeyFindings"),
+    snippetContextLines: coerceNonNegativeInt(
+      compaction.snippetContextLines,
+      "compaction.snippetContextLines",
+    ),
+    maxAnalyzerBytesRead: coercePositiveInt(
+      compaction.maxAnalyzerBytesRead,
+      "compaction.maxAnalyzerBytesRead",
+    ),
+    maxPatternBytesRead: coercePositiveInt(
+      compaction.maxPatternBytesRead,
+      "compaction.maxPatternBytesRead",
+    ),
+  };
+}
+
+function normalizeArtifactsConfig(artifacts) {
+  if (artifacts == null || typeof artifacts !== "object" || Array.isArray(artifacts)) {
+    throw new Error(`Invalid artifacts; expected object`);
+  }
+  return {
+    enabled: Boolean(artifacts.enabled),
+    dir: String(artifacts.dir ?? "artifacts").trim() || "artifacts",
+  };
+}
+
+function coerceNonNegativeInt(value, label) {
+  const asNumber = Number(value);
+  if (!Number.isFinite(asNumber) || asNumber < 0 || !Number.isInteger(asNumber)) {
+    throw new Error(`Invalid ${label}; expected non-negative integer`);
+  }
+  return asNumber;
 }

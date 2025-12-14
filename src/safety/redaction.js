@@ -1,6 +1,9 @@
-const TOKEN_RE = /\b[A-Za-z0-9_\-=]{24,}\b/g;
+// Heuristic token matcher: long, base64-ish, and contains at least one "_" or "=".
+// This avoids redacting common hyphenated identifiers like filenames (e.g., "research-handoff-20251213-...").
+const TOKEN_RE =
+  /(?<![A-Za-z0-9_=-])(?=[A-Za-z0-9_=-]{24,})(?=[A-Za-z0-9_=-]*[_=])[A-Za-z0-9_=-]{24,}(?![A-Za-z0-9_=-])/g;
 const GITHUB_TOKEN_RE = /\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g;
-const JWT_RE = /\beyJ[A-Za-z0-9_\-=]{10,}\.[A-Za-z0-9_\-=]{10,}\.[A-Za-z0-9_\-=]{10,}\b/g;
+const JWT_RE = /\beyJ[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\b/g;
 const URL_CREDENTIALS_RE = /\b(https?:\/\/)([^\/\s:@]+):([^\/\s@]+)@/gi;
 
 export function redactText(text) {
@@ -24,4 +27,3 @@ export function redactJson(value) {
   }
   return value;
 }
-

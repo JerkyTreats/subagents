@@ -51,7 +51,7 @@ Run locally:
 Tools:
 - `ping`
 - `list_roots`
-- `research_codebase` (Phase 2)
+- `research_codebase` (Phase 4: locate → analyze → patterns → synthesize)
 
 ### LM Studio
 `mcp.json` is included as a starting point. Adjust paths as needed for your LM Studio setup.
