@@ -7,7 +7,11 @@ export const listRootsTool = {
     additionalProperties: false,
   },
   async handler({ config }) {
-    const payload = { roots: config.roots };
+    const payload = {
+      roots: config.roots,
+      cwd: process.cwd(),
+      configPath: config?._meta?.configPath ?? null,
+    };
     return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
   },
 };
